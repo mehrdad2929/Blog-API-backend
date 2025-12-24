@@ -70,45 +70,45 @@ appRouter.delete('/api/author/posts/:postId',
 appRouter.post('/api/user/signup',
     signupValidation,
     validate,
-    appController.userSignup
+    appController.readerSignup
 );
 appRouter.post('/api/user/login',
     loginValidation,
     validate,
-    appController.userLogin
+    appController.readerLogin
 );
 appRouter.get('/api/user/profile',
     authenticateToken,
-    roleRequired('user'),
-    appController.getUser
+    roleRequired('reader'),
+    appController.getReader
 );
 appRouter.put('/api/user/profile',
     authenticateToken,
-    roleRequired('user'),
-    appController.updateUser
+    roleRequired('reader'),
+    appController.updateReader
 );
 appRouter.delete('/api/user/account',
     authenticateToken,
-    roleRequired('user'),
-    appController.deleteUser
+    roleRequired('reader'),
+    appController.deleteReader
 );
-//NOTE:user actions
+//NOTE:user(reader and author can comment) actions
 //post a comment
-appRouter.post('/api/posts/:postId/comments',
+appRouter.post('/api/comments',
     authenticateToken,
-    roleRequired('user'),
+    roleRequired('reader', 'author'),
     appController.createAComment
 );
 //update a comment
-appRouter.put('/api/posts/:postId/comments/:commentId',
+appRouter.put('/api/comments/:commentId',
     authenticateToken,
-    roleRequired('user'),
+    roleRequired('reader', 'author'),
     appController.updateAComment
 );
 //delete a comment
-appRouter.delete('/api/posts/:postId/comments/:commentId',
+appRouter.delete('/api/comments/:commentId',
     authenticateToken,
-    roleRequired('user'),
+    roleRequired('reader', 'author'),
     appController.deleteAComment
 );
 //NOTE:public routes
@@ -117,7 +117,7 @@ appRouter.get('/api/posts/',
     appController.getPostsPublic
 );
 appRouter.get('/api/posts/:postId',
-    appController.getAPostPublic
+    appController.getAPost
 );
 appRouter.get('/api/authors/:username',
     appController.getAuthorPublic

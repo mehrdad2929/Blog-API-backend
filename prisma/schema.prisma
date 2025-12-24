@@ -8,40 +8,49 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
-model Author {
-    id       Int    @id @default(autoincrement())
-    username String @unique
-    password String
-    email    String @unique
-    name     String
-    posts    Post[]
+enum Role {
+    READER
+    AUTHOR
 }
 
 model User {
-    id       Int       @id @default(autoincrement())
-    username String    @unique
-    password String
-    email    String    @unique
-    name     String
-    comments Comment[]
+    id        Int       @id @default(autoincrement())
+    username  String
+    email     String
+    password  String
+    name      String?
+    role      Role
+    posts     Post[]    @relation("AuthorPosts")
+    comments  Comment[]
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now())
+
+    @@unique([username, role]) // username + role must be unique together
+    @@unique([email, role]) // email + role must be unique together
 }
 
 model Post {
     id        Int       @id @default(autoincrement())
     title     String
     content   String
-    createdAt DateTime  @default(now())
+    published Boolean   @default(false)
     authorId  Int
+    author    User      @relation("AuthorPosts", fields: [authorId], references: [id], onDelete: Cascade)
     comments  Comment[]
-    author    Author    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @default(now())
 }
 
 model Comment {
-    id        Int      @id @default(autoincrement())
-    content   String
-    createdAt DateTime @default(now())
-    userId    Int?
-    user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-    postId    Int
-    post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+    id              Int       @id @default(autoincrement())
+    content         String
+    userId          Int
+    user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+    postId          Int
+    post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+    parentCommentId Int?
+    parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id])
+    replys          Comment[] @relation("CommentReplies")
+    createdAt       DateTime  @default(now())
+    updatedAt       DateTime  @default(now())
 }

@@ -15,27 +15,18 @@ exports.authenticateToken = async (req, res, next) => {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Determine which table to check based on role in token
-        let userExists;
-        if (decoded.role === 'author') {
-            userExists = await prisma.author.findUnique({
-                where: { id: decoded.id },
-                select: { id: true }
-            });
-        } else if (decoded.role === 'user') {
-            userExists = await prisma.user.findUnique({
-                where: { id: decoded.id },
-                select: { id: true }
-            });
-        } else {
-            return res.status(401).json({ error: 'Invalid role in token' });
-        }
+        // Just check if user exists
+        const userExists = await prisma.user.findUnique({
+            where: { id: decoded.id },
+            select: { id: true }
+        });
 
         if (!userExists) {
             return res.status(401).json({ error: 'User no longer exists' });
         }
 
         req.user = decoded; // Contains id and role
+        // console.log('user:', req.user)
         next();
     } catch (err) {
         if (err.name === 'JsonWebTokenError') {
@@ -50,7 +41,6 @@ exports.authenticateToken = async (req, res, next) => {
 };
 exports.roleRequired = (...allowdRoles) => {
     return (req, res, next) => {
-        allowdRoles.map(role => console.log(role))
         if (!allowdRoles.includes(req.user.role)) {
             return res.status(403).json({
                 error: 'not accesiable with this role'

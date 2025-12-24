@@ -2,19 +2,19 @@ require('@dotenvx/dotenvx').config();
 const prisma = require('../db/prisma');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
+//TODO:change based on the roles!
 exports.authorSignup = async (req, res) => {
     const { username, password, email, name } = req.body;
-    const existingUsername = await prisma.author.findUnique({
-        where: { username: username }
+    const existingUsername = await prisma.user.findUnique({
+        where: { username_role: { username: username, role: "AUTHOR" } }
     });
     if (existingUsername) {
         return res.status(409).json({
             message: "User with this username already exists"
         });
     }
-    const existingEmail = await prisma.author.findUnique({
-        where: { email: email }
+    const existingEmail = await prisma.user.findUnique({
+        where: { email_role: { email: email, role: "AUTHOR" } }
     });
     if (existingEmail) {
         return res.status(409).json({
@@ -22,13 +22,13 @@ exports.authorSignup = async (req, res) => {
         });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await prisma.author.create({
+    const user = await prisma.user.create({
         data: {
-            username: username,
+            username,
             password: hashedPassword,
-            email: email,
-            name: name
-
+            email,
+            name,
+            role: "AUTHOR"
         }
     });
     res.status(201).json({
@@ -39,8 +39,8 @@ exports.authorSignup = async (req, res) => {
 exports.authorLogin = async (req, res) => {
     const { username, password } = req.body;
     try {
-        const user = await prisma.author.findUnique({
-            where: { username: username }
+        const user = await prisma.user.findUnique({
+            where: { username_role: { username: username, role: "AUTHOR" } }
         });
         if (!user) {
             return res.status(401).json({
@@ -75,9 +75,13 @@ exports.authorLogin = async (req, res) => {
 }
 exports.getAuthor = async (req, res) => {
     try {
-        const author = await prisma.author.findUnique({
-            where: { id: req.user.id },
-            include: {
+        const author = await prisma.user.findUnique({
+            where: { id: req.user.id, role: "AUTHOR" },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                name: true,
                 posts: {
                     orderBy: { createdAt: 'desc' }
                 }
@@ -142,7 +146,6 @@ exports.createAPost = async (req, res) => {
         id: post.id,
         post
     })
-
 }
 exports.getAuthorPosts = async (req, res) => {
     const posts = await prisma.post.findMany({
@@ -150,26 +153,80 @@ exports.getAuthorPosts = async (req, res) => {
             authorId: req.user.id
         }
     })
-    res.stauts(200).json({
+    res.status(200).json({
         message: 'here are the posts for this author',
         posts
     })
 
 }
+// Transform flat comments into hierarchical structure
+function buildCommentTree(comments) {
+    const commentMap = new Map();
+    const roots = [];
 
-exports.getAPost = async (req, res) => {
-    const postId = parseInt(req.params.postId);
-    const post = await prisma.post.findFirst({
-        where: {
-            id: postId
+    // First pass: create a map of all comments
+    comments.forEach(comment => {
+        commentMap.set(comment.id, { ...comment, replys: [] });
+    });
+
+    // Second pass: build the tree
+    comments.forEach(comment => {
+        const node = commentMap.get(comment.id);
+        if (comment.parentCommentId === null) {
+            roots.push(node);
+        } else {
+            const parent = commentMap.get(comment.parentCommentId);
+            if (parent) {
+                parent.replys.push(node);
+            }
         }
     });
-    res.json({
-        message: `here is the post for this title ${post.title}`,
-        post
-    })
 
+    return roots;
 }
+exports.getAPost = async (req, res) => {
+    const postId = parseInt(req.params.postId);
+
+    try {
+        const post = await prisma.post.findUnique({
+            where: { id: postId },
+            include: {
+                comments: {
+                    include: {
+                        user: {
+                            select: {
+                                username: true
+                            }
+                        }
+                    },
+                    orderBy: {
+                        createdAt: 'desc'
+                    }
+                },
+                author: {
+                    select: {
+                        username: true
+                    }
+                }
+            }
+        });
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+        const hierarchicalComments = buildCommentTree(post.comments);
+        post.comments = hierarchicalComments;
+        // console.dir(post.comments, { depth: 10 })
+
+
+        res.json({
+            message: `Post: ${post.title}`,
+            post
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
 exports.updateAPost = async (req, res) => {
     const postId = parseInt(req.params.postId);
     const { title, content } = req.body;
@@ -201,22 +258,22 @@ exports.deleteAPost = async (req, res) => {
 
 }
 
-exports.userSignup = async (req, res) => {
+exports.readerSignup = async (req, res) => {
     const { username, password, email, name } = req.body;
     const existingUsername = await prisma.user.findUnique({
-        where: { username: username }
+        where: { username_role: { username: username, role: "READER" } }
     });
     if (existingUsername) {
         return res.status(409).json({
-            message: "User with this username already exists"
+            message: "Reader with this username already exists"
         });
     }
     const existingEmail = await prisma.user.findUnique({
-        where: { email: email }
+        where: { email_role: { email: email, role: "READER" } }
     });
     if (existingEmail) {
         return res.status(409).json({
-            message: "User with this email already exists"
+            message: "Reader with this email already exists"
         });
     }
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -225,7 +282,8 @@ exports.userSignup = async (req, res) => {
             username: username,
             password: hashedPassword,
             email: email,
-            name: name
+            name: name,
+            role: "READER"
 
         }
     });
@@ -233,15 +291,15 @@ exports.userSignup = async (req, res) => {
         message: 'user registered successfully'
     });
 }
-exports.userLogin = async (req, res) => {
+exports.readerLogin = async (req, res) => {
     const { username, password } = req.body;
     try {
         const user = await prisma.user.findUnique({
-            where: { username: username }
+            where: { username_role: { username: username, role: "READER" } }
         });
         if (!user) {
             return res.status(401).json({
-                message: `there is no such user as ${username}`
+                message: `there is no such reader as ${username}`
             });
         }
         const match = await bcrypt.compare(password, user.password);
@@ -253,7 +311,7 @@ exports.userLogin = async (req, res) => {
         const token = jwt.sign(
             {
                 id: user.id,
-                role: 'user'
+                role: 'reader'
             },
             process.env.JWT_SECRET,
             { expiresIn: '1d' }
@@ -270,11 +328,22 @@ exports.userLogin = async (req, res) => {
         });
     }
 }
-exports.getUser = async (req, res) => {
+exports.getReader = async (req, res) => {
     const user = await prisma.user.findFirst({
         where: {
-            id: req.user.id
+            id: req.user.id,
+            role: "READER"
+        },
+        select: {
+            id: true,
+            username: true,
+            email: true,
+            name: true,
+            comments: {
+                orderBy: { createdAt: 'desc' }
+            }
         }
+
     })
     const usersComments = await prisma.comment.findMany({
         where: {
@@ -290,7 +359,7 @@ exports.getUser = async (req, res) => {
         usersComments: usersComments
     })
 }
-exports.updateUser = async (req, res) => {
+exports.updateReader = async (req, res) => {
     const { username, email, newPassword } = req.body;
 
     const updateData = {};
@@ -312,7 +381,7 @@ exports.updateUser = async (req, res) => {
         requiresRelogin: !!newPassword
     });
 };
-exports.deleteUser = async (req, res) => {
+exports.deleteReader = async (req, res) => {
     await prisma.user.delete({
         where: { id: req.user.id },
     });
@@ -323,20 +392,45 @@ exports.deleteUser = async (req, res) => {
     });
 };
 exports.createAComment = async (req, res) => {
-    const postId = parseInt(req.params.postId);
-    const { commentContent } = req.body;
-    const comment = await prisma.comment.create({
-        data: {
-            content: commentContent,
-            userId: req.user.id,
-            postId: postId
+    let { postId, parentCommentId, content } = req.body;
+    postId = parseInt(postId);
+    parentCommentId = parentCommentId ? parseInt(parentCommentId) : null;
+
+    const { role, id } = req.user;
+
+    try {
+        const post = await prisma.post.findUnique({
+            where: { id: postId }
+        });
+
+        if (!post) {
+            return res.status(404).json({ error: 'Post not found' });
         }
-    })
-    res.json({
-        message: 'comment created',
-        comment
-    })
-}
+
+        if (role === 'AUTHOR' && post.authorId !== id) {
+            return res.status(403).json({
+                error: 'Authors can only comment on their own posts'
+            });
+        }
+
+        const comment = await prisma.comment.create({
+            data: {
+                content,
+                userId: id,
+                postId,
+                parentCommentId
+            }
+        });
+
+        res.status(201).json({
+            message: 'Comment created successfully',
+            comment
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+};
 
 exports.updateAComment = async (req, res) => {
     const commentId = parseInt(req.params.commentId);
@@ -366,28 +460,17 @@ exports.deleteAComment = async (req, res) => {
 }
 exports.getPostsPublic = async (req, res) => {
     const allPosts = await prisma.post.findMany()
+    // console.dir(allPosts, { depth: 10 })
     res.json({
         message: 'all of posts:',
         allPosts: allPosts
-    })
-}
-exports.getAPostPublic = async (req, res) => {
-    const postId = parseInt(req.params.postId)
-    const post = await prisma.post.findFirst({
-        where: {
-            id: postId
-        }
-    })
-    res.json({
-        message: 'here is the post:',
-        post: post
     })
 }
 exports.getAuthorPublic = async (req, res) => {
     try {
         const { username } = req.params;
 
-        const author = await prisma.author.findUnique({
+        const author = await prisma.user.findUnique({
             where: { username },
             select: {
                 id: true,
@@ -405,6 +488,37 @@ exports.getAuthorPublic = async (req, res) => {
 
         res.json({
             message: `Author: ${author.name}`,
+            author
+        });
+    } catch (error) {
+        console.error(error)
+        res.status(500).json({ message: 'Error fetching author' });
+    }
+};
+
+exports.getAuthorPublic = async (req, res) => {
+    try {
+        const author = await prisma.user.findUnique({
+            where: {
+                username_role: { username: req.params.username, role: "AUTHOR" }
+            },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                name: true,
+                posts: {
+                    orderBy: { createdAt: 'desc' }
+                }
+            }
+        });
+
+        if (!author) {
+            return res.status(404).json({ message: 'Author not found' });
+        }
+
+        res.status(200).json({
+            message: 'the author:',
             author
         });
     } catch (error) {

@@ -4,8 +4,10 @@ const path = require('path');
 const appRouter = require('./routes/appRoutes');
 const { setUser } = require('./middewares/auth')
 const prisma = require('./db/prisma');
+const cors = require('cors');
 const app = express()
 
+app.use(cors());
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
