@@ -113,6 +113,9 @@ appRouter.delete('/api/comments/:commentId',
 );
 //NOTE:public routes
 //it can be used for front page which it has like variaty of posts and maybe add tags to post model for topics like medium
+appRouter.get('/api/authors',
+    appController.getAllAuthors
+);
 appRouter.get('/api/posts/',
     appController.getPostsPublic
 );

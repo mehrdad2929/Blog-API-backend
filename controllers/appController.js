@@ -108,9 +108,10 @@ exports.updateAuthor = async (req, res) => {
     if (email) updateData.email = email;
     if (newPassword) {
         updateData.password = await bcrypt.hash(newPassword, 10);
+        console.log('newPassword introduced!')
     }
 
-    await prisma.author.update({
+    await prisma.user.update({
         where: { id: req.user.id },
         data: updateData
     });
@@ -495,7 +496,18 @@ exports.getAuthorPublic = async (req, res) => {
         res.status(500).json({ message: 'Error fetching author' });
     }
 };
+exports.getAllAuthors = async (req, res) => {
+    const authors = await prisma.user.findMany({
+        where: {
+            role: "AUTHOR"
+        }
+    })
+    res.json({
+        message: 'all authors',
+        authors
+    })
 
+}
 exports.getAuthorPublic = async (req, res) => {
     try {
         const author = await prisma.user.findUnique({

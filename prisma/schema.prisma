@@ -49,7 +49,7 @@ model Comment {
     postId          Int
     post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
     parentCommentId Int?
-    parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id])
+    parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: SetNull)
     replys          Comment[] @relation("CommentReplies")
     createdAt       DateTime  @default(now())
     updatedAt       DateTime  @default(now())
